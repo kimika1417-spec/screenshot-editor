@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 10px;
+  font-family: sans-serif;
+  background: #f5f5f5;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: white;
+  padding: 10px;
+  border-bottom: 1px solid #ccc;
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button {
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.canvas-container {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  background: white;
+  border: 1px solid #ccc;
+
+  touch-action: none;
+}
+
+.info {
+  margin-top: 10px;
+  color: #555;
+  font-size: 14px;
+}
+</style>
+
+</head>
+<body>
+
+<div class="toolbar">
+  <input type="file" id="fileInput" accept="image/*">
+
+  <button id="undoBtn">元に戻す</button>
+  <button id="clearBtn">すべてクリア</button>
+  <button id="processBtn">実行</button>
+  <button id="saveBtn" disabled>PNG保存</button>
+</div>
+
+<div class="canvas-container">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div class="info">
+  <p>
+    画像を読み込んだら、削除したい範囲を上下にドラッグしてください。<br>
+    赤い部分が削除対象になります。
+  </p>
+</div>
+
+<script>
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const fileInput = document.getElementById("fileInput");
+
+const undoBtn = document.getElementById("undoBtn");
+const clearBtn = document.getElementById("clearBtn");
+const processBtn = document.getElementById("processBtn");
+const saveBtn = document.getElementById("saveBtn");
+
+let originalImage = null;
+
+// 元画像サイズ
+let imageWidth = 0;
+let imageHeight = 0;
+
+// 表示倍率
+let scale = 1;
+
+// 削除範囲
+let deleteRanges = [];
+
+// ドラッグ中
+let dragging = false;
+let dragStartY = 0;
+let dragCurrentY = 0;
+
+// 編集後画像
+let processedCanvas = null;
+
+/* =========================
+   画像読込
+========================= */
+
+fileInput.addEventListener("change", (e) => {
+
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = () => {
+
+    const img = new Image();
+
+    img.onload = () => {
+
+      originalImage = img;
+
+      imageWidth = img.width;
+      imageHeight = img.height;
+
+      resizeCanvas();
+
+      deleteRanges = [];
+      processedCanvas = null;
+
+      saveBtn.disabled = true;
+
+      draw();
+    };
+
+    img.src = reader.result;
+  };
+
+  reader.readAsDataURL(file);
+});
+
+/* =========================
+   キャンバスサイズ調整
+========================= */
+
+function resizeCanvas() {
+
+  const containerWidth =
+    canvas.parentElement.clientWidth;
+
+  scale = containerWidth / imageWidth;
+
+  canvas.width = imageWidth;
+  canvas.height = imageHeight;
+
+  canvas.style.width = containerWidth + "px";
+  canvas.style.height =
+    (imageHeight * scale) + "px";
+}
+
+/* =========================
+   描画
+========================= */
+
+function draw() {
+
+  if (!originalImage) return;
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  ctx.drawImage(
+    originalImage,
+    0,
+    0
+  );
+
+  // 登録済み範囲
+  ctx.fillStyle = "rgba(255,0,0,0.3)";
+
+  deleteRanges.forEach(range => {
+
+    ctx.fillRect(
+      0,
+      range.start,
+      imageWidth,
+      range.end - range.start
+    );
+
+  });
+
+  // ドラッグ中
+  if (dragging) {
+
+    const top =
+      Math.min(
+        dragStartY,
+        dragCurrentY
+      );
+
+    const bottom =
+      Math.max(
+        dragStartY,
+        dragCurrentY
+      );
+
+    ctx.fillStyle =
+      "rgba(255,0,0,0.3)";
+
+    ctx.fillRect(
+      0,
+      top,
+      imageWidth,
+      bottom - top
+    );
+  }
+}
+
+/* =========================
+   座標変換
+========================= */
+
+function getCanvasY(clientY) {
+
+  const rect =
+    canvas.getBoundingClientRect();
+
+  return (
+    (clientY - rect.top) / scale
+  );
+}
+
+/* =========================
+   マウス操作
+========================= */
+
+canvas.addEventListener(
+  "mousedown",
+  (e) => {
+
+    if (!originalImage) return;
+
+    dragging = true;
+
+    dragStartY =
+      getCanvasY(e.clientY);
+
+    dragCurrentY =
+      dragStartY;
+
+    draw();
+  }
+);
+
+window.addEventListener(
+  "mousemove",
+  (e) => {
+
+    if (!dragging) return;
+
+    dragCurrentY =
+      getCanvasY(e.clientY);
+
+    draw();
+  }
+);
+
+window.addEventListener(
+  "mouseup",
+  () => {
+
+    finishSelection();
+  }
+);
+
+/* =========================
+   タッチ操作
+========================= */
+
+canvas.addEventListener(
+  "touchstart",
+  (e) => {
+
+    if (!originalImage) return;
+
+    e.preventDefault();
+
+    dragging = true;
+
+    dragStartY =
+      getCanvasY(
+        e.touches[0].clientY
+      );
+
+    dragCurrentY =
+      dragStartY;
+
+    draw();
+  },
+  { passive: false }
+);
+
+canvas.addEventListener(
+  "touchmove",
+  (e) => {
+
+    if (!dragging) return;
+
+    e.preventDefault();
+
+    dragCurrentY =
+      getCanvasY(
+        e.touches[0].clientY
+      );
+
+    draw();
+  },
+  { passive: false }
+);
+
+canvas.addEventListener(
+  "touchend",
+  (e) => {
+
+    e.preventDefault();
+
+    finishSelection();
+  },
+  { passive: false }
+);
+
+/* =========================
+   範囲確定
+========================= */
+
+function finishSelection() {
+
+  if (!dragging) return;
+
+  dragging = false;
+
+  let start =
+    Math.min(
+      dragStartY,
+      dragCurrentY
+    );
+
+  let end =
+    Math.max(
+      dragStartY,
+      dragCurrentY
+    );
+
+  if (end - start > 5) {
+
+    deleteRanges.push({
+      start,
+      end
+    });
+
+  }
+
+  draw();
+}
+
+/* =========================
+   画面回転対応
+========================= */
+
+window.addEventListener(
+  "resize",
+  () => {
+
+    if (!originalImage) return;
+
+    resizeCanvas();
+    draw();
+  }
+);
+
+/* =========================
+   Undo
+========================= */
+
+undoBtn.addEventListener(
+  "click",
+  () => {
+
+    if (deleteRanges.length === 0) {
+      return;
+    }
+
+    deleteRanges.pop();
+
+    draw();
+  }
+);
+
+/* =========================
+   全クリア
+========================= */
+
+clearBtn.addEventListener(
+  "click",
+  () => {
+
+    deleteRanges = [];
+
+    processedCanvas = null;
+
+    saveBtn.disabled = true;
+
+    draw();
+  }
+);
+
+/* =========================
+   実行
+========================= */
+
+processBtn.addEventListener(
+  "click",
+  () => {
+
+    if (!originalImage) {
+      return;
+    }
+
+    if (deleteRanges.length === 0) {
+      alert("削除範囲を選択してください");
+      return;
+    }
+
+    // Y座標順
+    const ranges =
+      [...deleteRanges]
+        .sort((a, b) => a.start - b.start);
+
+    // 残す領域
+    const keepParts = [];
+
+    let currentY = 0;
+
+    ranges.forEach(range => {
+
+      if (range.start > currentY) {
+
+        keepParts.push({
+          start: currentY,
+          end: range.start
+        });
+
+      }
+
+      currentY = range.end;
+    });
+
+    if (currentY < imageHeight) {
+
+      keepParts.push({
+        start: currentY,
+        end: imageHeight
+      });
+
+    }
+
+    // 出力高さ計算
+    let outputHeight = 0;
+
+    keepParts.forEach(part => {
+
+      outputHeight +=
+        part.end - part.start;
+
+    });
+
+    // 出力Canvas
+    processedCanvas =
+      document.createElement("canvas");
+
+    processedCanvas.width =
+      imageWidth;
+
+    processedCanvas.height =
+      Math.round(outputHeight);
+
+    const outCtx =
+      processedCanvas.getContext("2d");
+
+    let destY = 0;
+
+    keepParts.forEach(part => {
+
+      const h =
+        part.end - part.start;
+
+      outCtx.drawImage(
+        originalImage,
+
+        0,
+        part.start,
+        imageWidth,
+        h,
+
+        0,
+        destY,
+        imageWidth,
+        h
+      );
+
+      destY += h;
+    });
+
+    // プレビュー表示
+    canvas.width =
+      processedCanvas.width;
+
+    canvas.height =
+      processedCanvas.height;
+
+    ctx.clearRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    ctx.drawImage(
+      processedCanvas,
+      0,
+      0
+    );
+
+    // 表示サイズ再計算
+    const containerWidth =
+      canvas.parentElement.clientWidth;
+
+    const previewScale =
+      containerWidth /
+      processedCanvas.width;
+
+    canvas.style.width =
+      containerWidth + "px";
+
+    canvas.style.height =
+      (
+        processedCanvas.height *
+        previewScale
+      ) + "px";
+
+    saveBtn.disabled = false;
+
+    alert("処理完了");
+  }
+);
+
+/* =========================
+   PNG保存
+========================= */
+
+saveBtn.addEventListener(
+  "click",
+  () => {
+
+    if (!processedCanvas) {
+      return;
+    }
+
+    const link =
+      document.createElement("a");
+
+    link.download =
+      "edited.png";
+
+    link.href =
+      processedCanvas.toDataURL(
+        "image/png"
+      );
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+  }
+);
+
+</script>
+
+</body>
+</html>
