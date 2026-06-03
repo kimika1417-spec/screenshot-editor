@@ -58,6 +58,7 @@ canvas {
   <input type="file" id="fileInput" accept="image/*">
 
   <button id="selectModeBtn">選択モード: OFF</button>
+  <button id="directionBtn">切り取り方向: 縦</button>
   <button id="undoBtn">元に戻す</button>
   <button id="clearBtn">すべてクリア</button>
   <button id="processBtn">実行</button>
@@ -87,6 +88,7 @@ const clearBtn = document.getElementById("clearBtn");
 const processBtn = document.getElementById("processBtn");
 const saveBtn = document.getElementById("saveBtn");
 const selectModeBtn = document.getElementById("selectModeBtn");
+const directionBtn = document.getElementById("directionBtn");
 
 let originalImage = null;
 
@@ -119,8 +121,8 @@ let dragCurrentY = 0;
 
 // 編集後画像
 let processedCanvas = null;
-
 let selectMode = false;
+let cutDirection = "vertical";
 
 /* =========================
    画像読込
