@@ -42,8 +42,6 @@ canvas {
   width: 100%;
   background: white;
   border: 1px solid #ccc;
-
-  touch-action: none;
 }
 
 .info {
@@ -59,6 +57,7 @@ canvas {
 <div class="toolbar">
   <input type="file" id="fileInput" accept="image/*">
 
+  <button id="selectModeBtn">選択モード: OFF</button>
   <button id="undoBtn">元に戻す</button>
   <button id="clearBtn">すべてクリア</button>
   <button id="processBtn">実行</button>
@@ -87,8 +86,21 @@ const undoBtn = document.getElementById("undoBtn");
 const clearBtn = document.getElementById("clearBtn");
 const processBtn = document.getElementById("processBtn");
 const saveBtn = document.getElementById("saveBtn");
+const selectModeBtn = document.getElementById("selectModeBtn");
 
 let originalImage = null;
+
+selectModeBtn.addEventListener(
+  "click",
+  () => {
+    selectMode = !selectMode;
+
+    selectModeBtn.textContent =
+      selectMode
+        ? "選択モード: ON"
+        : "選択モード: OFF";
+  }
+);
 
 // 元画像サイズ
 let imageWidth = 0;
@@ -107,6 +119,8 @@ let dragCurrentY = 0;
 
 // 編集後画像
 let processedCanvas = null;
+
+let selectMode = false;
 
 /* =========================
    画像読込
@@ -250,6 +264,7 @@ canvas.addEventListener(
   (e) => {
 
     if (!originalImage) return;
+    if (!selectMode) return;
 
     dragging = true;
 
@@ -293,7 +308,8 @@ canvas.addEventListener(
   (e) => {
 
     if (!originalImage) return;
-
+    if (!selectMode) return;
+    
     e.preventDefault();
 
     dragging = true;
@@ -315,6 +331,7 @@ canvas.addEventListener(
   "touchmove",
   (e) => {
 
+    if (!selectMode) return;
     if (!dragging) return;
 
     e.preventDefault();
