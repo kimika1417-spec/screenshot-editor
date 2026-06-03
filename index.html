@@ -111,11 +111,14 @@ directionBtn.addEventListener(
       cutDirection = "horizontal";
       directionBtn.textContent =
         "切り取り方向: 横";
+        
     } else {
       cutDirection = "vertical";
       directionBtn.textContent =
         "切り取り方向: 縦";
+        
     }
+    deleteRanges = [];
     draw();
   }
 );
@@ -564,6 +567,11 @@ processBtn.addEventListener(
       alert("削除範囲を選択してください");
       return;
     }
+    
+    if (cutDirection === "horizontal") {
+      processHorizontal();
+      return;
+    }
 
     // Y座標順
     const ranges =
@@ -718,6 +726,127 @@ saveBtn.addEventListener(
     document.body.removeChild(link);
   }
 );
+
+function processHorizontal() {
+
+  const ranges =
+    [...deleteRanges]
+      .sort((a, b) => a.start - b.start);
+
+  const keepParts = [];
+
+  let currentX = 0;
+
+  ranges.forEach(range => {
+
+    if (range.start > currentX) {
+
+      keepParts.push({
+        start: currentX,
+        end: range.start
+      });
+
+    }
+
+    currentX = range.end;
+
+  });
+
+  if (currentX < imageWidth) {
+
+    keepParts.push({
+      start: currentX,
+      end: imageWidth
+    });
+
+  }
+
+  let outputWidth = 0;
+
+  keepParts.forEach(part => {
+
+    outputWidth +=
+      part.end - part.start;
+
+  });
+
+  processedCanvas =
+    document.createElement("canvas");
+
+  processedCanvas.width =
+    Math.round(outputWidth);
+
+  processedCanvas.height =
+    imageHeight;
+
+  const outCtx =
+    processedCanvas.getContext("2d");
+
+  let destX = 0;
+
+  keepParts.forEach(part => {
+
+    const w =
+      part.end - part.start;
+
+    outCtx.drawImage(
+      originalImage,
+
+      part.start,
+      0,
+      w,
+      imageHeight,
+
+      destX,
+      0,
+      w,
+      imageHeight
+    );
+
+    destX += w;
+
+  });
+
+  canvas.width =
+    processedCanvas.width;
+
+  canvas.height =
+    processedCanvas.height;
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  ctx.drawImage(
+    processedCanvas,
+    0,
+    0
+  );
+
+  const containerWidth =
+    canvas.parentElement.clientWidth;
+
+  const previewScale =
+    containerWidth /
+    processedCanvas.width;
+
+  canvas.style.width =
+    containerWidth + "px";
+
+  canvas.style.height =
+    (
+      processedCanvas.height *
+      previewScale
+    ) + "px";
+
+  saveBtn.disabled = false;
+
+  alert("処理完了");
+
+}
 
 </script>
 
