@@ -104,6 +104,22 @@ selectModeBtn.addEventListener(
   }
 );
 
+directionBtn.addEventListener(
+  "click",
+  () => {
+    if (cutDirection === "vertical") {
+      cutDirection = "horizontal";
+      directionBtn.textContent =
+        "切り取り方向: 横";
+    } else {
+      cutDirection = "vertical";
+      directionBtn.textContent =
+        "切り取り方向: 縦";
+    }
+    draw();
+  }
+);
+
 // 元画像サイズ
 let imageWidth = 0;
 let imageHeight = 0;
@@ -116,6 +132,10 @@ let deleteRanges = [];
 
 // ドラッグ中
 let dragging = false;
+
+let dragStartX = 0;
+let dragCurrentX = 0;
+
 let dragStartY = 0;
 let dragCurrentY = 0;
 
@@ -207,6 +227,8 @@ function draw() {
 
   deleteRanges.forEach(range => {
 
+  if (range.direction === "vertical") {
+
     ctx.fillRect(
       0,
       range.start,
@@ -214,10 +236,23 @@ function draw() {
       range.end - range.start
     );
 
-  });
+  } else {
+
+    ctx.fillRect(
+      range.start,
+      0,
+      range.end - range.start,
+      imageHeight
+    );
+
+  }
+
+});
 
   // ドラッグ中
   if (dragging) {
+    
+    if (cutDirection === "vertical") {
 
     const top =
       Math.min(
@@ -240,6 +275,28 @@ function draw() {
       imageWidth,
       bottom - top
     );
+    
+    } else {
+
+  const left =
+    Math.min(
+      dragStartX,
+      dragCurrentX
+    );
+
+  const right =
+    Math.max(
+      dragStartX,
+      dragCurrentX
+    );
+
+  ctx.fillRect(
+    left,
+    0,
+    right - left,
+    imageHeight
+  );
+}
   }
 }
 
@@ -248,12 +305,18 @@ function draw() {
 ========================= */
 
 function getCanvasY(clientY) {
-
   const rect =
     canvas.getBoundingClientRect();
-
   return (
     (clientY - rect.top) / scale
+  );
+}
+
+function getCanvasX(clientX) {
+  const rect =
+    canvas.getBoundingClientRect();
+  return (
+    (clientX - rect.left) / scale
   );
 }
 
@@ -269,13 +332,13 @@ canvas.addEventListener(
     if (!selectMode) return;
 
     dragging = true;
+    
+    dragStartX = getCanvasX(e.clientX);
+    dragCurrentX = dragStartX;
 
-    dragStartY =
-      getCanvasY(e.clientY);
-
-    dragCurrentY =
-      dragStartY;
-
+    dragStartY = getCanvasY(e.clientY);
+    dragCurrentY = dragStartY;
+    
     draw();
   }
 );
@@ -285,6 +348,9 @@ window.addEventListener(
   (e) => {
 
     if (!dragging) return;
+    
+    dragCurrentX =
+      getCanvasX(e.clientX);
 
     dragCurrentY =
       getCanvasY(e.clientY);
@@ -315,6 +381,14 @@ canvas.addEventListener(
     e.preventDefault();
 
     dragging = true;
+    
+    dragStartX =
+      getCanvasX(
+        e.touches[0].clientX
+      );
+
+    dragCurrentX =
+      dragStartX;
 
     dragStartY =
       getCanvasY(
@@ -337,6 +411,11 @@ canvas.addEventListener(
     if (!dragging) return;
 
     e.preventDefault();
+    
+    dragCurrentX =
+      getCanvasX(
+        e.touches[0].clientX
+      );
 
     dragCurrentY =
       getCanvasY(
@@ -383,10 +462,35 @@ function finishSelection() {
 
   if (end - start > 5) {
 
-    deleteRanges.push({
-      start,
-      end
-    });
+    if (cutDirection === "vertical") {
+
+  deleteRanges.push({
+    start,
+    end,
+    direction: "vertical"
+  });
+
+} else {
+
+  const startX =
+    Math.min(
+      dragStartX,
+      dragCurrentX
+    );
+
+  const endX =
+    Math.max(
+      dragStartX,
+      dragCurrentX
+    );
+
+  deleteRanges.push({
+    start: startX,
+    end: endX,
+    direction: "horizontal"
+  });
+
+}
 
   }
 
